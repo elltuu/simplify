@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simplify - Dados e Gestão (prévia)</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+/* copiado de public/css/estilo.css */
+body { background-color: #f4f6f9; }
+.preco { font-size: 1.6rem; font-weight: bold; color: #0d6efd; }
+@media (max-width: 576px) { .btn { padding-top: 12px; padding-bottom: 12px; } }
+.previa-aviso { background:#fff3cd; font-size:.8rem; text-align:center; padding:4px; }
+</style>
+</head>
+<body>
+<div id="nav"></div>
+<div class="container" id="app"></div>
+<footer class="text-center text-muted small my-4">Desenvolvimento de sistemas orientados a dispositivos móveis e baseados na web - Senac 2026</footer>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+var usuarios = [
+  {id:1, nome:'Marcos da Silva', email:'marcos@simplify.com', perfil:'gestor'},
+  {id:2, nome:'Juliana de Souza', email:'juliana@simplify.com', perfil:'vendedor'}];
+var produtos = [
+  {id:1,codigo:'001',nome:'Camiseta Basica Branca',categoria:'Roupas',preco:39.90,estoque:25},
+  {id:2,codigo:'002',nome:'Calca Jeans Masculina',categoria:'Roupas',preco:129.90,estoque:10},
+  {id:3,codigo:'003',nome:'Tenis Esportivo',categoria:'Calcados',preco:199.90,estoque:4},
+  {id:4,codigo:'004',nome:'Bone Preto',categoria:'Acessorios',preco:49.90,estoque:15},
+  {id:5,codigo:'005',nome:'Meia Kit 3 pares',categoria:'Acessorios',preco:24.90,estoque:3},
+  {id:6,codigo:'006',nome:'Jaqueta Corta Vento',categoria:'Roupas',preco:159.90,estoque:7}];
+var vendas = [], user = null, erro = '', ultima = null;
+var $ = function(id){return document.getElementById(id);};
+function brl(n){return 'R$ ' + n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fdata(d){return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function filtrar(b){b=(b||'').toLowerCase();return produtos.filter(function(p){return !b||[p.nome,p.codigo,p.categoria].some(function(x){return x.toLowerCase().indexOf(b)>=0;});});}
+function go(h){location.hash = h;}
+function sair(){user=null;go('login');}
+
+function navbar(){
+  if(!user){$('nav').innerHTML='';return;}
+  $('nav').innerHTML = '<nav class="navbar navbar-expand-md navbar-dark bg-primary mb-3"><div class="container">'+
+  '<a class="navbar-brand" href="#inicio">Simplify</a>'+
+  '<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu"><span class="navbar-toggler-icon"></span></button>'+
+  '<div class="collapse navbar-collapse" id="menu"><ul class="navbar-nav me-auto">'+
+  '<li class="nav-item"><a class="nav-link" href="#inicio">Início</a></li>'+
+  '<li class="nav-item"><a class="nav-link" href="#nova_venda">Nova venda</a></li>'+
+  '<li class="nav-item"><a class="nav-link" href="#produtos">Produtos</a></li>'+
+  (user.perfil=='gestor'?'<li class="nav-item"><a class="nav-link" href="#vendas">Vendas</a></li>':'')+
+  '</ul><span class="navbar-text me-3">Olá, '+esc(user.nome)+'</span>'+
+  '<a href="#login" onclick="user=null" class="btn btn-outline-light btn-sm">Sair</a></div></div></nav>';
+}
+
+var views = {
+login: function(){ return '<div class="row justify-content-center mt-5"><div class="col-12 col-md-5">'+
+ '<h2 class="text-center text-primary mb-1">Simplify</h2><p class="text-center text-muted">Dados e Gestão</p>'+
+ '<div class="card shadow-sm"><div class="card-body">'+(erro?'<div class="alert alert-danger">'+erro+'</div>':'')+
+ '<form onsubmit="return entrar(event)">'+
+ '<div class="mb-3"><label class="form-label">E-mail</label><input type="email" id="email" class="form-control form-control-lg"></div>'+
+ '<div class="mb-3"><label class="form-label">Senha</label><input type="password" id="senha" class="form-control form-control-lg"></div>'+
+ '<div class="form-check mb-3"><input type="checkbox" class="form-check-input" id="mostrar" onclick="var c=$(\'senha\');c.type=c.type==\'password\'?\'text\':\'password\'"><label class="form-check-label" for="mostrar">Mostrar senha</label></div>'+
+ '<button class="btn btn-primary btn-lg w-100">Entrar</button></form></div></div></div></div>';},
+
+inicio: function(){
+ var hoje = vendas, total = hoje.reduce(function(s,v){return s+v.total;},0);
+ var al = produtos.filter(function(p){return p.estoque<=5;});
+ return '<h4 class="mb-3">Acesso rápido</h4><div class="row g-3 mb-4">'+
+ '<div class="col-12 col-md-4"><a href="#nova_venda" class="btn btn-success btn-lg w-100 py-4">Nova venda</a></div>'+
+ '<div class="col-6 col-md-4"><a href="#produtos" class="btn btn-outline-primary btn-lg w-100 py-4">Consultar produto</a></div>'+
+ '<div class="col-6 col-md-4">'+(user.perfil=='gestor'?'<a href="#vendas" class="btn btn-outline-primary btn-lg w-100 py-4">Histórico de vendas</a>':'<a href="#produto_novo" class="btn btn-outline-primary btn-lg w-100 py-4">Cadastrar produto</a>')+'</div></div>'+
+ '<div class="row g-3"><div class="col-6"><div class="card text-center"><div class="card-body"><small class="text-muted">Vendas hoje</small><h3>'+hoje.length+'</h3></div></div></div>'+
+ '<div class="col-6"><div class="card text-center"><div class="card-body"><small class="text-muted">Total hoje</small><h3>'+brl(total)+'</h3></div></div></div></div>'+
+ '<h5 class="mt-4">Alertas de estoque baixo</h5>'+(al.length?'':'<p class="text-muted">Nenhum produto com estoque baixo.</p>')+
+ al.map(function(a){return '<div class="alert alert-warning py-2"><strong>'+esc(a.nome)+'</strong> - restam '+a.estoque+' unidades</div>';}).join('');},
+
+nova_venda: function(q){
+ var b = q.busca||'', lista = b?filtrar(b):[];
+ return '<h4>Nova venda</h4><p class="text-muted">Pesquise o produto pelo nome, código ou categoria.</p>'+
+ '<form class="mb-3" onsubmit="go(\'nova_venda?busca=\'+encodeURIComponent($(\'busca\').value));return false"><div class="input-group input-group-lg">'+
+ '<input type="text" id="busca" class="form-control" placeholder="Ex: camiseta ou 001" value="'+esc(b)+'"><button class="btn btn-primary">Buscar</button></div></form>'+
+ (b&&!lista.length?'<div class="alert alert-secondary">Nenhum produto encontrado.</div>':'')+
+ lista.map(function(p){return '<div class="card mb-3"><div class="card-body"><div class="d-flex justify-content-between"><h5 class="mb-0">'+esc(p.nome)+'</h5><span class="badge bg-secondary align-self-start">'+p.codigo+'</span></div>'+
+ '<small class="text-muted">'+p.categoria+'</small><div class="d-flex justify-content-between align-items-center my-2"><span class="preco">'+brl(p.preco)+'</span>'+
+ (p.estoque>0?'<span class="text-success">Em estoque: '+p.estoque+'</span>':'<span class="text-danger">Sem estoque</span>')+'</div>'+
+ (p.estoque>0?'<div class="d-flex gap-2"><input type="number" id="q'+p.id+'" value="1" class="form-control form-control-lg" style="max-width:100px"><button class="btn btn-success btn-lg flex-fill" onclick="vender('+p.id+')">Confirmar venda</button></div>':'')+
+ '</div></div>';}).join('');},
+
+venda_ok: function(){ var v=ultima; return '<div class="alert alert-success text-center"><h4 class="mb-0">Venda registrada com sucesso!</h4></div>'+
+ '<div class="card mb-3"><div class="card-header">Resumo da venda nº '+v.id+'</div><ul class="list-group list-group-flush">'+
+ '<li class="list-group-item">Produto: <strong>'+esc(v.produto)+'</strong></li><li class="list-group-item">Quantidade: '+v.qtd+'</li>'+
+ '<li class="list-group-item">Preço unitário: '+brl(v.preco)+'</li><li class="list-group-item">Total: <strong>'+brl(v.total)+'</strong></li>'+
+ '<li class="list-group-item">Vendedor: '+esc(v.vendedor)+'</li><li class="list-group-item">Data: '+fdata(v.data)+'</li></ul></div>'+
+ '<div class="d-grid gap-2"><a href="#nova_venda" class="btn btn-success btn-lg">Nova venda</a><a href="#inicio" class="btn btn-outline-secondary">Voltar ao início</a></div>';},
+
+produtos: function(q){ var b=q.busca||'';
+ return '<div class="d-flex justify-content-between align-items-center mb-3"><h4 class="mb-0">Produtos</h4><a href="#produto_novo" class="btn btn-primary">+ Novo</a></div>'+
+ '<form class="mb-3" onsubmit="go(\'produtos?busca=\'+encodeURIComponent($(\'busca\').value));return false"><div class="input-group"><input type="text" id="busca" class="form-control" placeholder="Buscar por nome, código ou categoria" value="'+esc(b)+'"><button class="btn btn-outline-primary">Buscar</button></div></form>'+
+ '<div class="table-responsive"><table class="table table-hover align-middle"><thead class="table-light"><tr><th>Código</th><th>Nome</th><th class="d-none d-md-table-cell">Categoria</th><th>Preço</th><th>Estoque</th><th></th></tr></thead><tbody>'+
+ filtrar(b).map(function(p){return '<tr><td>'+p.codigo+'</td><td>'+esc(p.nome)+'</td><td class="d-none d-md-table-cell">'+p.categoria+'</td><td>'+brl(p.preco)+'</td><td>'+
+ (p.estoque<=5?'<span class="badge bg-warning text-dark">'+p.estoque+'</span>':p.estoque)+'</td><td><a href="#produto_editar?id='+p.id+'" class="btn btn-sm btn-outline-secondary">Editar</a></td></tr>';}).join('')+
+ '</tbody></table></div>';},
+
+produto_form: function(q){ var p = q.id?produtos.filter(function(x){return x.id==q.id;})[0]:null; var id=p?p.id:0;
+ function f(k){return p?esc(p[k]):'';}
+ return '<h4 class="mb-3">'+(p?'Editar produto':'Novo produto')+'</h4><form class="row g-3" onsubmit="return salvar(event,'+id+')">'+
+ '<div class="col-4 col-md-2"><label class="form-label">Código</label><input id="f_codigo" class="form-control" value="'+f('codigo')+'"></div>'+
+ '<div class="col-8 col-md-6"><label class="form-label">Nome</label><input id="f_nome" class="form-control" value="'+f('nome')+'"></div>'+
+ '<div class="col-12 col-md-4"><label class="form-label">Categoria</label><input id="f_categoria" class="form-control" value="'+f('categoria')+'"></div>'+
+ '<div class="col-6 col-md-3"><label class="form-label">Preço (R$)</label><input type="number" step="0.01" id="f_preco" class="form-control" value="'+f('preco')+'"></div>'+
+ '<div class="col-6 col-md-3"><label class="form-label">Estoque</label><input type="number" id="f_estoque" class="form-control" value="'+f('estoque')+'"></div>'+
+ '<div class="col-12"><button class="btn btn-primary btn-lg">Salvar</button> <a href="#produtos" class="btn btn-link">Cancelar</a></div></form>';},
+
+vendas: function(){
+ return '<h4 class="mb-3">Histórico de vendas</h4><div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-primary"><tr><th>Nº</th><th>Data</th><th>Produto</th><th>Qtd</th><th>Total</th><th>Vendedor</th></tr></thead><tbody>'+
+ vendas.slice().reverse().map(function(v){return '<tr><td>'+v.id+'</td><td>'+fdata(v.data)+'</td><td>'+esc(v.produto)+'</td><td>'+v.qtd+'</td><td>'+brl(v.total)+'</td><td>'+esc(v.vendedor)+'</td></tr>';}).join('')+
+ '</tbody></table></div>'+(vendas.length?'':'<p class="text-muted">Nenhuma venda registrada ainda.</p>');}
+};
+
+function entrar(e){ e.preventDefault();
+ var em=$('email').value, se=$('senha').value;
+ var u=usuarios.filter(function(x){return x.email==em;})[0];
+ if(u && se=='123'){user=u;erro='';go('inicio');} else {erro='E-mail ou senha inválidos.';render();}
+ return false;}
+function vender(id){ var p=produtos.filter(function(x){return x.id==id;})[0]; var q=parseInt($('q'+id).value)||1;
+ p.estoque-=q; var v={id:vendas.length+1,produto:p.nome,qtd:q,preco:p.preco,total:p.preco*q,vendedor:user.nome,data:new Date()};
+ vendas.push(v); ultima=v; go('venda_ok');}
+function salvar(e,id){ e.preventDefault();
+ var d={codigo:$('f_codigo').value,nome:$('f_nome').value,categoria:$('f_categoria').value,preco:parseFloat($('f_preco').value)||0,estoque:parseInt($('f_estoque').value)||0};
+ if(id){Object.assign(produtos.filter(function(x){return x.id==id;})[0],d);} else {d.id=produtos.length+1;produtos.push(d);}
+ go('produtos'); return false;}
+
+function render(){
+ var h=location.hash.slice(1)||'inicio', parts=h.split('?'), page=parts[0], q={};
+ (parts[1]||'').split('&').forEach(function(kv){if(kv){var a=kv.split('=');q[a[0]]=decodeURIComponent(a[1]||'');}});
+ if(!user && page!='login'){go('login');return;}
+ if(page=='produto_novo'||page=='produto_editar')page='produto_form';
+ if(page=='vendas'&&user.perfil!='gestor')page='inicio';
+ navbar();
+ $('app').innerHTML=(views[page]||views.inicio)(q);
+}
+window.addEventListener('hashchange',function(){erro=erro&&location.hash=='#login'?erro:'';render();});
+render();
+</script>
+</body>
+</html>
